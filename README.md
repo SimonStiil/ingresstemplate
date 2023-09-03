@@ -1,5 +1,7 @@
 # ingresstemplate
-// TODO(user): Add simple overview of use/purpose
+A Controller that allows you to create a IngressTemplate that takes a secret and replaces keys in secret with values in IngressTemplate
+
+This allows for creation of Ingress objects containing secret information you don't want to store in your source control. 
 
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
