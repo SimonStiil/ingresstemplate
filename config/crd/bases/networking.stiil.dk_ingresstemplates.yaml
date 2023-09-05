@@ -34,6 +34,23 @@ spec:
           spec:
             description: IngressTemplateSpec defines the desired state of IngressTemplate
             properties:
+              configMapReplacement:
+                items:
+                  properties:
+                    key:
+                      description: The key of the object to select from.  Must be
+                        a valid key.
+                      type: string
+                    name:
+                      description: The name of the object in the templates namespace
+                        to select from.
+                      type: string
+                    selector:
+                      description: What should be replaced in path or host.
+                      type: string
+                  type: object
+                type: array
+                x-kubernetes-list-type: atomic
               defaultBackend:
                 description: DefaultBackend is the backend that should handle requests
                   that don't match any rule. If Rules are not specified, DefaultBackend
@@ -257,19 +274,19 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
-              secertReplacement:
+              secretReplacement:
                 items:
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be
-                        a valid secret key.
+                      description: The key of the object to select from.  Must be
+                        a valid key.
                       type: string
-                    replacement:
+                    name:
+                      description: The name of the object in the templates namespace
+                        to select from.
+                      type: string
+                    selector:
                       description: What should be replaced in path or host.
-                      type: string
-                    secretName:
-                      description: The name of the secret in the pod's namespace to
-                        select from.
                       type: string
                   type: object
                 type: array
@@ -313,10 +330,24 @@ spec:
                   of cluster Important: Run "make" to regenerate code after modifying
                   this file'
                 type: string
+              configmaps:
+                items:
+                  properties:
+                    name:
+                      description: 'INSERT ADDITIONAL STATUS FIELD - define observed
+                        state of cluster Important: Run "make" to regenerate code
+                        after modifying this file'
+                      type: string
+                    sha:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+                type: array
               secrets:
                 items:
                   properties:
-                    secret:
+                    name:
                       description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                         state of cluster Important: Run "make" to regenerate code
                         after modifying this file'
