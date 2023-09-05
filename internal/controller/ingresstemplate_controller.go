@@ -62,7 +62,6 @@ type IngressTemplateReconciler struct {
 type Replacement struct {
 	Selector    string
 	Replacement string
-	Key         string
 	Sha1        string
 	Status      networkingv1alpha1.ObjectStatus
 }
@@ -135,8 +134,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		replacementData := string(replacementDataByte)
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		replacement := Replacement{Selector: secretReplacement.Selector, Replacement: replacementData,
-			Key: secretReplacement.Key, Sha1: sha1, Status: currentSecretStatus}
+		replacement := Replacement{Selector: secretReplacement.Selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
 		replacements[index] = replacement
 	}
 
@@ -170,8 +168,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		hash.Write([]byte(replacementData))
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		replacement := Replacement{Selector: configMapReplacement.Selector, Replacement: replacementData,
-			Key: configMapReplacement.Key, Sha1: sha1, Status: currentConfigMapStatus}
+		replacement := Replacement{Selector: configMapReplacement.Selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
 		replacements[index] = replacement
 	}
 

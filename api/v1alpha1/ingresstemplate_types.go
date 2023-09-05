@@ -80,9 +80,6 @@ type Replacement struct {
 	// What should be replaced in path or host.
 	// +optional
 	Selector string `json:"selector" protobuf:"bytes,2,opt,name=selector"`
-	// The key of the object to select from.  Must be a valid key.
-	// +optional
-	Key string `json:"key" protobuf:"bytes,3,opt,name=key"`
 }
 
 // IngressTemplateStatus defines the observed state of IngressTemplate

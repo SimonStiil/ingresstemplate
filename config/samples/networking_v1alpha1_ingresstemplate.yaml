@@ -18,15 +18,25 @@ spec:
             name: kubernetes
             port:
               number: 443
-        path: /REPLACE
+        path: /REPLACE/THIS
         pathType: Prefix
   secertReplacement:
-  - secretName: ingresstemplate-sample
-
+  - name: ingresstemplate-sample
+    selector: REPLACE
+  configmapReplacement:
+  - name: ingresstemplate-sample
+    selector: THIS
 ---
 apiVersion: v1
 data:
   REPLACE: c2FtcGxl
 kind: Secret
+metadata:
+  name: ingresstemplate-sample
+---
+apiVersion: v1
+data:
+  THIS: configmap
+kind: ConfigMap
 metadata:
   name: ingresstemplate-sample
