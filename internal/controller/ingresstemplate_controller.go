@@ -106,7 +106,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// Get replacements for secrets
 	var missingSecret string
-	for index, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
+	for _, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
 		secret := corev1.Secret{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: secretReplacement.Name}, &secret)
 		var currentSecretStatus networkingv1alpha1.ObjectStatus
@@ -137,12 +137,12 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		sha1 := hex.EncodeToString(result[:7])
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
 		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
-		replacements[index] = replacement
+		replacements = append(replacements, replacement)
 	}
 
 	// Get replacements for configmaps
 	var missingConfigMap string
-	for index, configMapReplacement := range ingressTemplate.Spec.ConfigMapReplacements {
+	for _, configMapReplacement := range ingressTemplate.Spec.ConfigMapReplacements {
 		configMap := corev1.ConfigMap{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: configMapReplacement.Name}, &configMap)
 		var currentConfigMapStatus networkingv1alpha1.ObjectStatus
@@ -172,7 +172,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		sha1 := hex.EncodeToString(result[:7])
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
 		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
-		replacements[index] = replacement
+		replacements = append(replacements, replacement)
 	}
 
 	// If Create new Ingress Resource
@@ -356,6 +356,15 @@ func buildIngress(log *logr.Logger, ingressTemplate *networkingv1alpha1.IngressT
 
 func updateRules(log *logr.Logger, ingress *networkingv1.Ingress, ingressTemplate *networkingv1alpha1.IngressTemplate, replacements *[]Replacement) {
 	ingress.Spec.Rules = nil
+	for _, replacement := range *replacements {
+		if replacement.Status.Sha1 != "" && replacement.Status.Sha1 != replacement.Sha1 {
+			replacement.Status.Status = networkingv1alpha1.Changed
+		} else {
+			log.Info(fmt.Sprintf("updateRule: replacement rule Selector: %q, Replacement: %q not changed", replacement.Selector, replacement.Replacement))
+			replacement.Status.Status = networkingv1alpha1.Found
+		}
+		replacement.Status.Sha1 = replacement.Sha1
+	}
 	for _, rule := range ingressTemplate.Spec.Rules {
 		fixedRule := networkingv1.IngressRule{
 			IngressRuleValue: networkingv1.IngressRuleValue{
@@ -387,12 +396,6 @@ func updateRules(log *logr.Logger, ingress *networkingv1.Ingress, ingressTemplat
 			fixedRule.HTTP.Paths = append(fixedRule.HTTP.Paths, fixedPath)
 		}
 		ingress.Spec.Rules = append(ingress.Spec.Rules, fixedRule)
-	}
-	for _, replacement := range *replacements {
-		if replacement.Status.Sha1 != "" && replacement.Status.Sha1 != replacement.Sha1 {
-			replacement.Status.Status = networkingv1alpha1.Changed
-		}
-		replacement.Status.Sha1 = replacement.Sha1
 	}
 }
 
