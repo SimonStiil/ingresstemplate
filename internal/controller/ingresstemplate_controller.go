@@ -102,7 +102,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		log.Error(err, "failed to clean up old Owned resources for this IngressTemplate")
 		return ctrl.Result{}, err
 	}
-	replacements := make([]Replacement, len(ingressTemplate.Spec.SecretReplacements)+len(ingressTemplate.Spec.ConfigMapReplacements))
+	replacements := []Replacement{} //:= make([]Replacement, len(ingressTemplate.Spec.SecretReplacements)+len(ingressTemplate.Spec.ConfigMapReplacements))
 
 	// Get replacements for secrets
 	var missingSecret string
