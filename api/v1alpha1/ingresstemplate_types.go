@@ -28,7 +28,11 @@ import (
 type IngressTemplateSpec struct {
 	// +listType=atomic
 	// +optional
-	SecretReplacements []SecretReplacement `json:"secertReplacement,omitempty" protobuf:"bytes,1,opt,name=secertReplacement"`
+	SecretReplacements []Replacement `json:"secretReplacement,omitempty" protobuf:"bytes,2,rep,name=secretReplacement"`
+
+	// +listType=atomic
+	// +optional
+	ConfigMapReplacements []Replacement `json:"configmapReplacement,omitempty" protobuf:"bytes,2,rep,name=configmapReplacement"`
 
 	// copied from networking.v1.types.go "type IngressSpec struct"
 
@@ -68,17 +72,14 @@ type IngressTemplateSpec struct {
 	Rules []networkingv1.IngressRule `json:"rules,omitempty" protobuf:"bytes,3,rep,name=rules"`
 }
 
-type SecretReplacement struct {
+type Replacement struct {
 
-	// The name of the secret in the pod's namespace to select from.
-	SecretName string `json:"secretName,omitempty" protobuf:"bytes,1,opt,name=secretName"`
+	// The name of the object in the templates namespace to select from.
+	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
 
 	// What should be replaced in path or host.
 	// +optional
-	Replacement string `json:"replacement" protobuf:"bytes,2,opt,name=replacement"`
-	// The key of the secret to select from.  Must be a valid secret key.
-	// +optional
-	Key string `json:"key" protobuf:"bytes,3,opt,name=key"`
+	Selector string `json:"selector" protobuf:"bytes,2,opt,name=selector"`
 }
 
 // IngressTemplateStatus defines the observed state of IngressTemplate
@@ -88,30 +89,40 @@ type IngressTemplateStatus struct {
 
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Condition string `json:"condition,omitempty" protobuf:"bytes,1,rep,name=conditions"`
+	// +kubebuilder:validation:Enum=AwaitingSecret;AwaitingConfigMap;Created;Failed;New
+	// +kubebuilder:default:=New
+	Condition ConditionEnum `json:"condition,omitempty" protobuf:"bytes,1,rep,name=conditions"`
 
-	Secrets []SecretStatus `json:"secrets,omitempty" protobuf:"bytes,2,rep,name=secrets"`
+	Secrets    []ObjectStatus `json:"secrets,omitempty" protobuf:"bytes,2,rep,name=secrets"`
+	ConfigMaps []ObjectStatus `json:"configmaps,omitempty" protobuf:"bytes,2,rep,name=configmaps"`
 }
 
-type SecretStatus struct {
+type ObjectStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Secret string `json:"secret,omitempty" protobuf:"bytes,1,key,name=secret"`
-	Status string `json:"status,omitempty" protobuf:"bytes,2,key,name=status"`
-	Sha1   string `json:"sha,omitempty" protobuf:"bytes,3,key,name=Sha"`
+	Name     string `json:"name,omitempty" protobuf:"bytes,1,key,name=name"`
+	Selector string `json:"selector,omitempty" protobuf:"bytes,1,selector,name=name"`
+	// +kubebuilder:validation:Enum=NotFound;Found;Changed
+	// +kubebuilder:default:=NotFound
+	Status ObjectStatusEnum `json:"status,omitempty" protobuf:"bytes,2,key,name=status"`
+	Sha1   string           `json:"sha,omitempty" protobuf:"bytes,3,key,name=sha"`
 }
+
+type ConditionEnum string
+type ObjectStatusEnum string
 
 const (
 	// Conditions
-	AwaitingSecret string = "AwaitingSecret"
-	Created        string = "Created"
-	Failed         string = "Failed"
-	New            string = "New"
+	AwaitingSecret    ConditionEnum = "AwaitingSecret"
+	AwaitingConfigMap ConditionEnum = "AwaitingConfigMap"
+	Created           ConditionEnum = "Created"
+	Failed            ConditionEnum = "Failed"
+	New               ConditionEnum = "New"
 
 	// SecretStatus
-	NotFound string = "NotFound"
-	Found    string = "Found"
-	Changed  string = "Changed"
+	NotFound ObjectStatusEnum = "NotFound"
+	Found    ObjectStatusEnum = "Found"
+	Changed  ObjectStatusEnum = "Changed"
 )
 
 //+kubebuilder:object:root=true

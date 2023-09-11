@@ -43,11 +43,13 @@ podTemplate(yaml: '''
         '''
       }
     }
-    container('kaniko') {
-      stage('Build Docker Image') {
-        sh '''
-          /kaniko/executor --force --context `pwd` --log-format text --destination docker.io/simonstiil/ingresstemplate:$BRANCH_NAME
-        '''
+    if ( ! isPRBranch() ) {
+      container('kaniko') {
+        stage('Build Docker Image') {
+          sh '''
+            /kaniko/executor --force --context `pwd` --log-format text --destination docker.io/simonstiil/ingresstemplate:$BRANCH_NAME
+          '''
+        }
       }
     }
  

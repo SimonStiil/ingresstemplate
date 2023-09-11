@@ -34,6 +34,19 @@ spec:
           spec:
             description: IngressTemplateSpec defines the desired state of IngressTemplate
             properties:
+              configmapReplacement:
+                items:
+                  properties:
+                    name:
+                      description: The name of the object in the templates namespace
+                        to select from.
+                      type: string
+                    selector:
+                      description: What should be replaced in path or host.
+                      type: string
+                  type: object
+                type: array
+                x-kubernetes-list-type: atomic
               defaultBackend:
                 description: DefaultBackend is the backend that should handle requests
                   that don't match any rule. If Rules are not specified, DefaultBackend
@@ -257,19 +270,15 @@ spec:
                   type: object
                 type: array
                 x-kubernetes-list-type: atomic
-              secertReplacement:
+              secretReplacement:
                 items:
                   properties:
-                    key:
-                      description: The key of the secret to select from.  Must be
-                        a valid secret key.
+                    name:
+                      description: The name of the object in the templates namespace
+                        to select from.
                       type: string
-                    replacement:
+                    selector:
                       description: What should be replaced in path or host.
-                      type: string
-                    secretName:
-                      description: The name of the secret in the pod's namespace to
-                        select from.
                       type: string
                   type: object
                 type: array
@@ -309,21 +318,56 @@ spec:
             description: IngressTemplateStatus defines the observed state of IngressTemplate
             properties:
               condition:
+                default: New
                 description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
                   of cluster Important: Run "make" to regenerate code after modifying
                   this file'
+                enum:
+                - AwaitingSecret
+                - AwaitingConfigMap
+                - Created
+                - Failed
+                - New
                 type: string
-              secrets:
+              configmaps:
                 items:
                   properties:
-                    secret:
+                    name:
                       description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                         state of cluster Important: Run "make" to regenerate code
                         after modifying this file'
                       type: string
+                    selector:
+                      type: string
                     sha:
                       type: string
                     status:
+                      default: NotFound
+                      enum:
+                      - NotFound
+                      - Found
+                      - Changed
+                      type: string
+                  type: object
+                type: array
+              secrets:
+                items:
+                  properties:
+                    name:
+                      description: 'INSERT ADDITIONAL STATUS FIELD - define observed
+                        state of cluster Important: Run "make" to regenerate code
+                        after modifying this file'
+                      type: string
+                    selector:
+                      type: string
+                    sha:
+                      type: string
+                    status:
+                      default: NotFound
+                      enum:
+                      - NotFound
+                      - Found
+                      - Changed
                       type: string
                   type: object
                 type: array
