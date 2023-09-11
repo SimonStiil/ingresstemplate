@@ -91,13 +91,18 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	log.Info("fetching IngressTemplate resource in ")
 	var ingressTemplate networkingv1alpha1.IngressTemplate
 	if err := r.Get(ctx, req.NamespacedName, &ingressTemplate); err != nil {
-		log.Error(err, "Unable to fetch IngressTemplate")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if apierrors.IsNotFound(err) {
+			log.Info(fmt.Sprintf("Reconcile - Resource not found, Deleted?"))
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		} else {
+			log.Error(err, "Unable to fetch IngressTemplate")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
 	}
 	buildStatus(&ingressTemplate)
 
 	// Do Cleanup of old stuff
-	log.WithValues("ingresstemplate", ingressTemplate.Name)
+	// log.WithValues("ingresstemplate", ingressTemplate.Name)
 	if err := r.cleanupOwnedResources(ctx, &ingressTemplate); err != nil {
 		log.Error(err, "failed to clean up old Owned resources for this IngressTemplate")
 		return ctrl.Result{}, err
@@ -109,12 +114,10 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	for _, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
 		secret := corev1.Secret{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: secretReplacement.Name}, &secret)
-		var currentSecretStatus networkingv1alpha1.ObjectStatus
-		for _, secret := range ingressTemplate.Status.Secrets {
-			if secretReplacement.Name == secret.Name {
-				currentSecretStatus = secret
-				break
-			}
+		ok, currentSecretStatus := getSecretStatusforName(&ingressTemplate, secretReplacement.Name)
+		if !ok {
+			log.Error(err, fmt.Sprintf("SecretStatus not build for  %q", secretReplacement.Name))
+			continue
 		}
 		if apierrors.IsNotFound(err) {
 			currentSecretStatus.Status = networkingv1alpha1.NotFound
@@ -135,9 +138,17 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		replacementData := string(replacementDataByte)
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
+		if currentSecretStatus.Sha1 != "" && currentSecretStatus.Sha1 != sha1 {
+			currentSecretStatus.Status = networkingv1alpha1.Changed
+		} else {
+			currentSecretStatus.Status = networkingv1alpha1.Found
+		}
+		currentSecretStatus.Sha1 = sha1
+
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
 		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
+
 	}
 
 	// Get replacements for configmaps
@@ -145,12 +156,10 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	for _, configMapReplacement := range ingressTemplate.Spec.ConfigMapReplacements {
 		configMap := corev1.ConfigMap{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: configMapReplacement.Name}, &configMap)
-		var currentConfigMapStatus networkingv1alpha1.ObjectStatus
-		for _, configmap := range ingressTemplate.Status.ConfigMaps {
-			if configMapReplacement.Name == configmap.Name {
-				currentConfigMapStatus = configmap
-				break
-			}
+		ok, currentConfigMapStatus := getSecretStatusforName(&ingressTemplate, configMapReplacement.Name)
+		if !ok {
+			log.Error(err, fmt.Sprintf("ConfigMapStatus not build for  %q", configMapReplacement.Name))
+			continue
 		}
 		if apierrors.IsNotFound(err) {
 			currentConfigMapStatus.Status = networkingv1alpha1.NotFound
@@ -170,6 +179,13 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		hash.Write([]byte(replacementData))
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
+		if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 != sha1 {
+			currentConfigMapStatus.Status = networkingv1alpha1.Changed
+		} else {
+			currentConfigMapStatus.Status = networkingv1alpha1.Found
+		}
+		currentConfigMapStatus.Sha1 = sha1
+
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
 		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
@@ -219,8 +235,27 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 	log.Info("updated Ingress resource for IngressTemplate")
+	ingressTemplate.Status.Condition = networkingv1alpha1.Created
 	r.Status().Update(ctx, &ingressTemplate)
 	return ctrl.Result{}, nil
+}
+
+func getSecretStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) (bool, networkingv1alpha1.ObjectStatus) {
+	for _, status := range ingressTemplate.Status.Secrets {
+		if status.Name == name {
+			return true, status
+		}
+	}
+	return false, networkingv1alpha1.ObjectStatus{}
+}
+
+func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) (bool, networkingv1alpha1.ObjectStatus) {
+	for _, status := range ingressTemplate.Status.ConfigMaps {
+		if status.Name == name {
+			return true, status
+		}
+	}
+	return false, networkingv1alpha1.ObjectStatus{}
 }
 
 func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) {
@@ -233,7 +268,7 @@ func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) {
 			}
 		}
 		if !found {
-			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.New}
+			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.NotFound}
 			ingressTemplate.Status.Secrets = append(ingressTemplate.Status.Secrets, status)
 		}
 	}
@@ -246,7 +281,7 @@ func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) {
 			}
 		}
 		if !found {
-			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.New}
+			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.NotFound}
 			ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, status)
 		}
 	}
@@ -356,15 +391,6 @@ func buildIngress(log *logr.Logger, ingressTemplate *networkingv1alpha1.IngressT
 
 func updateRules(log *logr.Logger, ingress *networkingv1.Ingress, ingressTemplate *networkingv1alpha1.IngressTemplate, replacements *[]Replacement) {
 	ingress.Spec.Rules = nil
-	for _, replacement := range *replacements {
-		if replacement.Status.Sha1 != "" && replacement.Status.Sha1 != replacement.Sha1 {
-			replacement.Status.Status = networkingv1alpha1.Changed
-		} else {
-			log.Info(fmt.Sprintf("updateRule: replacement rule Selector: %q, Replacement: %q not changed", replacement.Selector, replacement.Replacement))
-			replacement.Status.Status = networkingv1alpha1.Found
-		}
-		replacement.Status.Sha1 = replacement.Sha1
-	}
 	for _, rule := range ingressTemplate.Spec.Rules {
 		fixedRule := networkingv1.IngressRule{
 			IngressRuleValue: networkingv1.IngressRuleValue{

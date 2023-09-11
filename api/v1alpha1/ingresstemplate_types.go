@@ -89,7 +89,9 @@ type IngressTemplateStatus struct {
 
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Condition string `json:"condition,omitempty" protobuf:"bytes,1,rep,name=conditions"`
+	// +kubebuilder:validation:Enum=AwaitingSecret;AwaitingConfigMap;Created;Failed;New
+	// +kubebuilder:default:=New
+	Condition ConditionEnum `json:"condition,omitempty" protobuf:"bytes,1,rep,name=conditions"`
 
 	Secrets    []ObjectStatus `json:"secrets,omitempty" protobuf:"bytes,2,rep,name=secrets"`
 	ConfigMaps []ObjectStatus `json:"configmaps,omitempty" protobuf:"bytes,2,rep,name=configmaps"`
@@ -98,23 +100,28 @@ type IngressTemplateStatus struct {
 type ObjectStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Name   string `json:"name,omitempty" protobuf:"bytes,1,key,name=name"`
-	Status string `json:"status,omitempty" protobuf:"bytes,2,key,name=status"`
-	Sha1   string `json:"sha,omitempty" protobuf:"bytes,3,key,name=sha"`
+	Name string `json:"name,omitempty" protobuf:"bytes,1,key,name=name"`
+	// +kubebuilder:validation:Enum=NotFound;Found;Changed
+	// +kubebuilder:default:=NotFound
+	Status ObjectStatusEnum `json:"status,omitempty" protobuf:"bytes,2,key,name=status"`
+	Sha1   string           `json:"sha,omitempty" protobuf:"bytes,3,key,name=sha"`
 }
+
+type ConditionEnum string
+type ObjectStatusEnum string
 
 const (
 	// Conditions
-	AwaitingSecret    string = "AwaitingSecret"
-	AwaitingConfigMap string = "AwaitingConfigMap"
-	Created           string = "Created"
-	Failed            string = "Failed"
-	New               string = "New"
+	AwaitingSecret    ConditionEnum = "AwaitingSecret"
+	AwaitingConfigMap ConditionEnum = "AwaitingConfigMap"
+	Created           ConditionEnum = "Created"
+	Failed            ConditionEnum = "Failed"
+	New               ConditionEnum = "New"
 
 	// SecretStatus
-	NotFound string = "NotFound"
-	Found    string = "Found"
-	Changed  string = "Changed"
+	NotFound ObjectStatusEnum = "NotFound"
+	Found    ObjectStatusEnum = "Found"
+	Changed  ObjectStatusEnum = "Changed"
 )
 
 //+kubebuilder:object:root=true

@@ -318,9 +318,16 @@ spec:
             description: IngressTemplateStatus defines the observed state of IngressTemplate
             properties:
               condition:
+                default: New
                 description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
                   of cluster Important: Run "make" to regenerate code after modifying
                   this file'
+                enum:
+                - AwaitingSecret
+                - AwaitingConfigMap
+                - Created
+                - Failed
+                - New
                 type: string
               configmaps:
                 items:
@@ -333,6 +340,11 @@ spec:
                     sha:
                       type: string
                     status:
+                      default: NotFound
+                      enum:
+                      - NotFound
+                      - Found
+                      - Changed
                       type: string
                   type: object
                 type: array
@@ -347,6 +359,11 @@ spec:
                     sha:
                       type: string
                     status:
+                      default: NotFound
+                      enum:
+                      - NotFound
+                      - Found
+                      - Changed
                       type: string
                   type: object
                 type: array
