@@ -100,7 +100,8 @@ type IngressTemplateStatus struct {
 type ObjectStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Name string `json:"name,omitempty" protobuf:"bytes,1,key,name=name"`
+	Name     string `json:"name,omitempty" protobuf:"bytes,1,key,name=name"`
+	Selector string `json:"selector,omitempty" protobuf:"bytes,1,selector,name=name"`
 	// +kubebuilder:validation:Enum=NotFound;Found;Changed
 	// +kubebuilder:default:=NotFound
 	Status ObjectStatusEnum `json:"status,omitempty" protobuf:"bytes,2,key,name=status"`

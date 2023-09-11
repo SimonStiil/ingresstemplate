@@ -59,6 +59,11 @@ type IngressTemplateReconciler struct {
 	Recorder record.EventRecorder
 }
 
+type Statuses struct {
+	Secrets    map[string]networkingv1alpha1.ObjectStatus
+	ConfigMaps map[string]networkingv1alpha1.ObjectStatus
+}
+
 type Replacement struct {
 	Selector    string
 	Replacement string
@@ -99,7 +104,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 	}
-	buildStatus(&ingressTemplate)
+	statuses := buildStatus(&ingressTemplate)
 
 	// Do Cleanup of old stuff
 	// log.WithValues("ingresstemplate", ingressTemplate.Name)
@@ -111,14 +116,17 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// Get replacements for secrets
 	var missingSecret string
+	changed := false
 	for _, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
 		secret := corev1.Secret{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: secretReplacement.Name}, &secret)
-		currentSecretStatus := getSecretStatusforName(&ingressTemplate, secretReplacement.Name)
+		statusKey := secretReplacement.Name + "-" + secretReplacement.Selector
+		currentSecretStatus := statuses.Secrets[statusKey]
 		if apierrors.IsNotFound(err) {
 			currentSecretStatus.Status = networkingv1alpha1.NotFound
 			log.Error(err, fmt.Sprintf("Failed to find Secret %q", secretReplacement.Name))
 			missingSecret = secretReplacement.Name
+			statuses.Secrets[statusKey] = currentSecretStatus
 			continue
 		}
 		if err != nil {
@@ -136,10 +144,16 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		sha1 := hex.EncodeToString(result[:7])
 		if currentSecretStatus.Sha1 != "" && currentSecretStatus.Sha1 != sha1 {
 			currentSecretStatus.Status = networkingv1alpha1.Changed
+			changed = true
 		} else {
+			if currentSecretStatus.Status == networkingv1alpha1.Changed {
+				changed = true
+
+			}
 			currentSecretStatus.Status = networkingv1alpha1.Found
 		}
 		currentSecretStatus.Sha1 = sha1
+		statuses.Secrets[statusKey] = currentSecretStatus
 
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
 		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
@@ -152,12 +166,13 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	for _, configMapReplacement := range ingressTemplate.Spec.ConfigMapReplacements {
 		configMap := corev1.ConfigMap{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: configMapReplacement.Name}, &configMap)
-		currentConfigMapStatus := getConfigMapStatusforName(&ingressTemplate, configMapReplacement.Name)
+		statusKey := configMapReplacement.Name + "-" + configMapReplacement.Selector
+		currentConfigMapStatus := statuses.ConfigMaps[statusKey]
 		if apierrors.IsNotFound(err) {
 			currentConfigMapStatus.Status = networkingv1alpha1.NotFound
 			log.Error(err, fmt.Sprintf("Failed to find ConfigMap %q", configMapReplacement.Name))
 			missingConfigMap = configMapReplacement.Name
-			ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, currentConfigMapStatus)
+			statuses.ConfigMaps[statusKey] = currentConfigMapStatus
 			continue
 		}
 		if err != nil {
@@ -174,17 +189,25 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		sha1 := hex.EncodeToString(result[:7])
 		if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 != sha1 {
 			currentConfigMapStatus.Status = networkingv1alpha1.Changed
+			changed = true
 		} else {
+			if currentConfigMapStatus.Status == networkingv1alpha1.Changed {
+				changed = true
+			}
 			currentConfigMapStatus.Status = networkingv1alpha1.Found
 		}
 		currentConfigMapStatus.Sha1 = sha1
+		statuses.ConfigMaps[statusKey] = currentConfigMapStatus
 
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
-		ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, currentConfigMapStatus)
 		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
 	}
-
+	if !changed {
+		log.Info("no changes stopping Reconcile")
+		return ctrl.Result{}, nil
+	}
+	setResourcesStatus(&ingressTemplate, statuses)
 	// If Create new Ingress Resource
 	ingress := networkingv1.Ingress{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: ingressTemplate.Name}, &ingress)
@@ -269,33 +292,49 @@ func deleteElement(slice []networkingv1alpha1.ObjectStatus, index int) []network
 	return append(slice[:index], slice[index+1:]...)
 }
 
-func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) {
+func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) Statuses {
+	statuses := Statuses{Secrets: make(map[string]networkingv1alpha1.ObjectStatus), ConfigMaps: make(map[string]networkingv1alpha1.ObjectStatus)}
+
 	for _, replacement := range ingressTemplate.Spec.SecretReplacements {
-		found := false
-		for _, secret := range ingressTemplate.Status.Secrets {
-			if replacement.Name == secret.Name {
-				found = true
-				break
+		currentStatus, ok := statuses.Secrets[replacement.Name+"-"+replacement.Selector]
+		if !ok {
+			for _, secret := range ingressTemplate.Status.Secrets {
+				if replacement.Name == secret.Name && replacement.Selector == secret.Selector {
+					currentStatus = *secret.DeepCopy()
+					break
+				}
 			}
-		}
-		if !found {
-			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.NotFound}
-			ingressTemplate.Status.Secrets = append(ingressTemplate.Status.Secrets, status)
+			currentStatus = networkingv1alpha1.ObjectStatus{Name: replacement.Name, Selector: replacement.Selector, Status: networkingv1alpha1.NotFound}
+			statuses.Secrets[replacement.Name+"-"+replacement.Selector] = currentStatus
 		}
 	}
 	for _, replacement := range ingressTemplate.Spec.ConfigMapReplacements {
-		found := false
-		for _, configmap := range ingressTemplate.Status.ConfigMaps {
-			if replacement.Name == configmap.Name {
-				found = true
-				break
+		currentStatus, ok := statuses.ConfigMaps[replacement.Name+"-"+replacement.Selector]
+		if !ok {
+			for _, configmap := range ingressTemplate.Status.ConfigMaps {
+				if replacement.Name == configmap.Name && replacement.Selector == configmap.Selector {
+					currentStatus = *configmap.DeepCopy()
+					break
+				}
 			}
-		}
-		if !found {
-			status := networkingv1alpha1.ObjectStatus{Name: replacement.Name, Status: networkingv1alpha1.NotFound}
-			ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, status)
+			currentStatus = networkingv1alpha1.ObjectStatus{Name: replacement.Name, Selector: replacement.Selector, Status: networkingv1alpha1.NotFound}
+			statuses.ConfigMaps[replacement.Name+"-"+replacement.Selector] = currentStatus
 		}
 	}
+	return statuses
+}
+
+func setResourcesStatus(ingressTemplate *networkingv1alpha1.IngressTemplate, statuses Statuses) {
+	secretsStatuses := []networkingv1alpha1.ObjectStatus{}
+	for _, value := range statuses.Secrets {
+		secretsStatuses = append(secretsStatuses, value)
+	}
+	ingressTemplate.Status.Secrets = secretsStatuses
+	configStatuses := []networkingv1alpha1.ObjectStatus{}
+	for _, value := range statuses.ConfigMaps {
+		configStatuses = append(configStatuses, value)
+	}
+	ingressTemplate.Status.ConfigMaps = configStatuses
 }
 
 func (r *IngressTemplateReconciler) findObjectForSecret(ctx context.Context, secret client.Object) []reconcile.Request {
