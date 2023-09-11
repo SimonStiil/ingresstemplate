@@ -28,11 +28,11 @@ import (
 type IngressTemplateSpec struct {
 	// +listType=atomic
 	// +optional
-	SecretReplacements []Replacement `json:"secretReplacement,omitempty" protobuf:"bytes,1,opt,name=secretReplacement"`
+	SecretReplacements []Replacement `json:"secretReplacement,omitempty" protobuf:"bytes,2,rep,name=secretReplacement"`
 
 	// +listType=atomic
 	// +optional
-	ConfigMapReplacements []Replacement `json:"configMapReplacement,omitempty" protobuf:"bytes,1,opt,name=configMapReplacement"`
+	ConfigMapReplacements []Replacement `json:"configmapReplacement,omitempty" protobuf:"bytes,2,rep,name=configmapReplacement"`
 
 	// copied from networking.v1.types.go "type IngressSpec struct"
 

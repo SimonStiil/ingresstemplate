@@ -20,7 +20,7 @@ spec:
               number: 443
         path: /REPLACE/THIS
         pathType: Prefix
-  secertReplacement:
+  secretReplacement:
   - name: ingresstemplate-sample
     selector: REPLACE
   configmapReplacement:

@@ -34,13 +34,9 @@ spec:
           spec:
             description: IngressTemplateSpec defines the desired state of IngressTemplate
             properties:
-              configMapReplacement:
+              configmapReplacement:
                 items:
                   properties:
-                    key:
-                      description: The key of the object to select from.  Must be
-                        a valid key.
-                      type: string
                     name:
                       description: The name of the object in the templates namespace
                         to select from.
@@ -277,10 +273,6 @@ spec:
               secretReplacement:
                 items:
                   properties:
-                    key:
-                      description: The key of the object to select from.  Must be
-                        a valid key.
-                      type: string
                     name:
                       description: The name of the object in the templates namespace
                         to select from.
