@@ -1,1 +1,1 @@
-make undeploy IMG=simonstiil/ingresstemplate:refactor-add-configmap
+make undeploy IMG=simonstiil/ingresstemplate:$(git rev-parse --abbrev-ref HEAD)

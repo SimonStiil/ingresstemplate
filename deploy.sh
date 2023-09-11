@@ -1,1 +1,1 @@
-make deploy IMG=simonstiil/ingresstemplate:refactor-add-configmap
+make deploy IMG=simonstiil/ingresstemplate:$(git rev-parse --abbrev-ref HEAD)
