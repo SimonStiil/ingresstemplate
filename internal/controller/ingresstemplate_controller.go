@@ -142,21 +142,27 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		replacementData := string(replacementDataByte)
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		if currentSecretStatus.Sha1 != "" && currentSecretStatus.Sha1 != sha1 {
-			currentSecretStatus.Status = networkingv1alpha1.Changed
-			handle = true
-		} else {
-			if currentSecretStatus.Status == networkingv1alpha1.Changed {
-				handle = true
+		sha1Changed := currentSecretStatus.Sha1 != sha1
 
+		if currentSecretStatus.Status == networkingv1alpha1.Found {
+			if sha1Changed {
+				currentSecretStatus.Status = networkingv1alpha1.Changed
+				handle = true
 			}
-			currentSecretStatus.Status = networkingv1alpha1.Found
+		} else {
+			if !sha1Changed {
+				currentSecretStatus.Status = networkingv1alpha1.Found
+				handle = true
+			} else {
+				currentSecretStatus.Status = networkingv1alpha1.Changed
+				handle = true
+			}
 		}
 		currentSecretStatus.Sha1 = sha1
 		statuses.Secrets[statusKey] = currentSecretStatus
 
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
-		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
+		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement) + " " + fmt.Sprintf("sha1Changed: %v Status: %v\n", sha1Changed, currentSecretStatus.Status))
 		replacements = append(replacements, replacement)
 
 	}
@@ -187,13 +193,15 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		hash.Write([]byte(replacementData))
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
+		sha1Changed := currentConfigMapStatus.Sha1 != sha1
+
 		if currentConfigMapStatus.Status == networkingv1alpha1.Found {
-			if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 != sha1 {
+			if sha1Changed {
 				currentConfigMapStatus.Status = networkingv1alpha1.Changed
 				handle = true
 			}
 		} else {
-			if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 == sha1 {
+			if !sha1Changed {
 				currentConfigMapStatus.Status = networkingv1alpha1.Found
 				handle = true
 			} else {
@@ -205,7 +213,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		statuses.ConfigMaps[statusKey] = currentConfigMapStatus
 
 		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
-		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
+		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement) + " " + fmt.Sprintf("sha1Changed: %v Status: %v\n", sha1Changed, currentConfigMapStatus.Status))
 		replacements = append(replacements, replacement)
 	}
 	if !handle {

@@ -1,0 +1,1 @@
+make deploy IMG=simonstiil/ingresstemplate:refactor-add-configmap
