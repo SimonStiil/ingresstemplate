@@ -263,6 +263,9 @@ func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTempla
 }
 
 func deleteElement(slice []networkingv1alpha1.ObjectStatus, index int) []networkingv1alpha1.ObjectStatus {
+	if len(slice) < 2 && index == 0 {
+		return []networkingv1alpha1.ObjectStatus{}
+	}
 	return append(slice[:index], slice[index+1:]...)
 }
 
