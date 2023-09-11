@@ -116,7 +116,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// Get replacements for secrets
 	var missingSecret string
-	changed := false
+	handle := false
 	for _, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
 		secret := corev1.Secret{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: secretReplacement.Name}, &secret)
@@ -144,10 +144,10 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		sha1 := hex.EncodeToString(result[:7])
 		if currentSecretStatus.Sha1 != "" && currentSecretStatus.Sha1 != sha1 {
 			currentSecretStatus.Status = networkingv1alpha1.Changed
-			changed = true
+			handle = true
 		} else {
 			if currentSecretStatus.Status == networkingv1alpha1.Changed {
-				changed = true
+				handle = true
 
 			}
 			currentSecretStatus.Status = networkingv1alpha1.Found
@@ -187,14 +187,19 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		hash.Write([]byte(replacementData))
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 != sha1 {
-			currentConfigMapStatus.Status = networkingv1alpha1.Changed
-			changed = true
-		} else {
-			if currentConfigMapStatus.Status == networkingv1alpha1.Changed {
-				changed = true
+		if currentConfigMapStatus.Status == networkingv1alpha1.Found {
+			if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 != sha1 {
+				currentConfigMapStatus.Status = networkingv1alpha1.Changed
+				handle = true
 			}
-			currentConfigMapStatus.Status = networkingv1alpha1.Found
+		} else {
+			if currentConfigMapStatus.Sha1 != "" && currentConfigMapStatus.Sha1 == sha1 {
+				currentConfigMapStatus.Status = networkingv1alpha1.Found
+				handle = true
+			} else {
+				currentConfigMapStatus.Status = networkingv1alpha1.Changed
+				handle = true
+			}
 		}
 		currentConfigMapStatus.Sha1 = sha1
 		statuses.ConfigMaps[statusKey] = currentConfigMapStatus
@@ -203,7 +208,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
 	}
-	if !changed {
+	if !handle {
 		log.Info("no changes stopping Reconcile")
 		return ctrl.Result{}, nil
 	}
