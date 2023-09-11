@@ -135,7 +135,8 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		replacementData := string(replacementDataByte)
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		replacement := Replacement{Selector: secretReplacement.Selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
+		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
+		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements[index] = replacement
 	}
 
@@ -169,7 +170,8 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		hash.Write([]byte(replacementData))
 		result := hash.Sum(nil)
 		sha1 := hex.EncodeToString(result[:7])
-		replacement := Replacement{Selector: configMapReplacement.Selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
+		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
+		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements[index] = replacement
 	}
 
@@ -358,20 +360,21 @@ func updateRules(log *logr.Logger, ingress *networkingv1.Ingress, ingressTemplat
 		fixedRule := networkingv1.IngressRule{
 			IngressRuleValue: networkingv1.IngressRuleValue{
 				HTTP: &networkingv1.HTTPIngressRuleValue{Paths: []networkingv1.HTTPIngressPath{}}}}
+
+		hostToFix := rule.Host
 		for _, replacement := range *replacements {
-			// Work on host field
-			hostToFix := rule.Host
 			if strings.Contains(rule.Host, replacement.Selector) {
 				if log != nil {
 					log.Info(fmt.Sprintf("updateRule(Host): %q fixed with %q > %q ", rule.Host, replacement.Selector, replacement.Replacement))
 				}
 				hostToFix = strings.Replace(hostToFix, replacement.Selector, replacement.Replacement, -1)
 			}
-			fixedRule.Host = hostToFix
+		}
+		fixedRule.Host = hostToFix
 
-			// Work on rule.HTTP.Paths fields
-			for _, path := range rule.HTTP.Paths {
-				pathToFix := path.Path
+		for _, path := range rule.HTTP.Paths {
+			pathToFix := path.Path
+			for _, replacement := range *replacements {
 				if strings.Contains(pathToFix, replacement.Selector) {
 					oldPath := pathToFix
 					pathToFix = strings.Replace(pathToFix, replacement.Selector, replacement.Replacement, -1)
@@ -379,9 +382,9 @@ func updateRules(log *logr.Logger, ingress *networkingv1.Ingress, ingressTemplat
 						log.Info(fmt.Sprintf("updateRule(Path): %q fixed with %q > %q to %q", oldPath, replacement.Selector, replacement.Replacement, pathToFix))
 					}
 				}
-				fixedPath := networkingv1.HTTPIngressPath{PathType: path.PathType, Backend: path.Backend, Path: pathToFix}
-				fixedRule.HTTP.Paths = append(fixedRule.HTTP.Paths, fixedPath)
 			}
+			fixedPath := networkingv1.HTTPIngressPath{PathType: path.PathType, Backend: path.Backend, Path: pathToFix}
+			fixedRule.HTTP.Paths = append(fixedRule.HTTP.Paths, fixedPath)
 		}
 		ingress.Spec.Rules = append(ingress.Spec.Rules, fixedRule)
 	}
