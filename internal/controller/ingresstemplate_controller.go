@@ -270,34 +270,35 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-func getSecretStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
-	var foundIndex int
-	var foundStatus networkingv1alpha1.ObjectStatus
-	for index, status := range ingressTemplate.Status.Secrets {
-		if status.Name == name {
-			foundIndex = index
-			foundStatus = status
-			break
+/*
+	func getSecretStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
+		var foundIndex int
+		var foundStatus networkingv1alpha1.ObjectStatus
+		for index, status := range ingressTemplate.Status.Secrets {
+			if status.Name == name {
+				foundIndex = index
+				foundStatus = status
+				break
+			}
 		}
+		ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
+		return foundStatus
 	}
-	ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
-	return foundStatus
-}
 
-func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
-	var foundIndex int
-	var foundStatus networkingv1alpha1.ObjectStatus
-	for index, status := range ingressTemplate.Status.ConfigMaps {
-		if status.Name == name {
-			foundIndex = index
-			foundStatus = status
-			break
+	func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
+		var foundIndex int
+		var foundStatus networkingv1alpha1.ObjectStatus
+		for index, status := range ingressTemplate.Status.ConfigMaps {
+			if status.Name == name {
+				foundIndex = index
+				foundStatus = status
+				break
+			}
 		}
+		ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
+		return foundStatus
 	}
-	ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
-	return foundStatus
-}
-
+*/
 func deleteElement(slice []networkingv1alpha1.ObjectStatus, index int) []networkingv1alpha1.ObjectStatus {
 	if len(slice) < 2 && index == 0 {
 		return []networkingv1alpha1.ObjectStatus{}
