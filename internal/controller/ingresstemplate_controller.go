@@ -63,7 +63,7 @@ type Replacement struct {
 	Selector    string
 	Replacement string
 	Sha1        string
-	Status      networkingv1alpha1.ObjectStatus
+	//	Status      networkingv1alpha1.ObjectStatus
 }
 
 //+kubebuilder:rbac:groups=networking.stiil.dk,resources=ingresstemplates,verbs=get;list;watch;create;update;patch;delete
@@ -114,11 +114,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	for _, secretReplacement := range ingressTemplate.Spec.SecretReplacements {
 		secret := corev1.Secret{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: secretReplacement.Name}, &secret)
-		ok, currentSecretStatus := getSecretStatusforName(&ingressTemplate, secretReplacement.Name)
-		if !ok {
-			log.Error(err, fmt.Sprintf("SecretStatus not build for  %q", secretReplacement.Name))
-			continue
-		}
+		currentSecretStatus := getSecretStatusforName(&ingressTemplate, secretReplacement.Name)
 		if apierrors.IsNotFound(err) {
 			currentSecretStatus.Status = networkingv1alpha1.NotFound
 			log.Error(err, fmt.Sprintf("Failed to find Secret %q", secretReplacement.Name))
@@ -145,7 +141,7 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		currentSecretStatus.Sha1 = sha1
 
-		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentSecretStatus}
+		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
 		log.Info("Reconcile secretReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
 
@@ -156,15 +152,12 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	for _, configMapReplacement := range ingressTemplate.Spec.ConfigMapReplacements {
 		configMap := corev1.ConfigMap{}
 		err := r.Get(ctx, client.ObjectKey{Namespace: ingressTemplate.Namespace, Name: configMapReplacement.Name}, &configMap)
-		ok, currentConfigMapStatus := getSecretStatusforName(&ingressTemplate, configMapReplacement.Name)
-		if !ok {
-			log.Error(err, fmt.Sprintf("ConfigMapStatus not build for  %q", configMapReplacement.Name))
-			continue
-		}
+		currentConfigMapStatus := getConfigMapStatusforName(&ingressTemplate, configMapReplacement.Name)
 		if apierrors.IsNotFound(err) {
 			currentConfigMapStatus.Status = networkingv1alpha1.NotFound
 			log.Error(err, fmt.Sprintf("Failed to find ConfigMap %q", configMapReplacement.Name))
 			missingConfigMap = configMapReplacement.Name
+			ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, currentConfigMapStatus)
 			continue
 		}
 		if err != nil {
@@ -186,7 +179,8 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		currentConfigMapStatus.Sha1 = sha1
 
-		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1, Status: currentConfigMapStatus}
+		replacement := Replacement{Selector: selector, Replacement: replacementData, Sha1: sha1}
+		ingressTemplate.Status.ConfigMaps = append(ingressTemplate.Status.ConfigMaps, currentConfigMapStatus)
 		log.Info("Reconcile configMapReplacement: " + fmt.Sprintf("%+v\n", replacement))
 		replacements = append(replacements, replacement)
 	}
@@ -240,22 +234,36 @@ func (r *IngressTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-func getSecretStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) (bool, networkingv1alpha1.ObjectStatus) {
-	for _, status := range ingressTemplate.Status.Secrets {
+func getSecretStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
+	var foundIndex int
+	var foundStatus networkingv1alpha1.ObjectStatus
+	for index, status := range ingressTemplate.Status.Secrets {
 		if status.Name == name {
-			return true, status
+			foundIndex = index
+			foundStatus = status
+			break
 		}
 	}
-	return false, networkingv1alpha1.ObjectStatus{}
+	ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
+	return foundStatus
 }
 
-func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) (bool, networkingv1alpha1.ObjectStatus) {
-	for _, status := range ingressTemplate.Status.ConfigMaps {
+func getConfigMapStatusforName(ingressTemplate *networkingv1alpha1.IngressTemplate, name string) networkingv1alpha1.ObjectStatus {
+	var foundIndex int
+	var foundStatus networkingv1alpha1.ObjectStatus
+	for index, status := range ingressTemplate.Status.ConfigMaps {
 		if status.Name == name {
-			return true, status
+			foundIndex = index
+			foundStatus = status
+			break
 		}
 	}
-	return false, networkingv1alpha1.ObjectStatus{}
+	ingressTemplate.Status.Secrets = deleteElement(ingressTemplate.Status.Secrets, foundIndex)
+	return foundStatus
+}
+
+func deleteElement(slice []networkingv1alpha1.ObjectStatus, index int) []networkingv1alpha1.ObjectStatus {
+	return append(slice[:index], slice[index+1:]...)
 }
 
 func buildStatus(ingressTemplate *networkingv1alpha1.IngressTemplate) {
