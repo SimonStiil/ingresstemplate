@@ -90,9 +90,10 @@ func main() {
 	}
 
 	if err = (&controller.IngressTemplateReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("containerset-controller"),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		// This "Recorder" is required for sending events!!!. Do remember it.
+		Recorder: mgr.GetEventRecorderFor("ingresstemplate-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressTemplate")
 		os.Exit(1)
