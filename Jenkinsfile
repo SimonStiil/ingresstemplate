@@ -9,7 +9,7 @@ podTemplate(yaml: '''
     spec:
       containers:
       - name: kaniko
-        image: gcr.io/kaniko-project/executor:debug
+        image: gcr.io/kaniko-project/executor:v1.20.0-debug
         command:
         - sleep
         args: 
@@ -18,7 +18,7 @@ podTemplate(yaml: '''
         - name: kaniko-secret
           mountPath: /kaniko/.docker
       - name: golang
-        image: golang:bookworm
+        image: golang:1.22.0-bookworm
         command:
         - sleep
         args: 
