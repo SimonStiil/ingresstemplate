@@ -24,6 +24,8 @@ podTemplate(yaml: '''
         args: 
         - 99d
       restartPolicy: Never
+      nodeSelector: 
+        kubernetes.io/arch: amd64
       volumes:
       - name: kaniko-secret
         secret:
